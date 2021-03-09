@@ -1,8 +1,9 @@
 /* This code is written for Winter 2021 MAE 156B Team 5 to control current output using an Arduino Mega 2560 
  *  and a Cytron 10A motor driver shield. This code will be used to vary current provided to Helmholtz Coils 
  *  for a 3D Magnetic Control System.
+ *  
  *  Written By Joseph Martin, February 2021
- *  Last Edited by: Joseph Martin, March 2021
+ *  Last Edited by: Joseph Martin, March 8, 2021
  */
 #include <LiquidCrystal.h>
 
@@ -39,7 +40,6 @@ int motor_direction1 = 0;
 int motor_direction2 = 0;
 int motor_direction3 = 0;
 
-
 // Variables for counting
 int long counter = 0;
 
@@ -52,16 +52,29 @@ float tempCurrent1; //these are for filtering purposes
 float tempCurrent2; 
 float tempCurrent3;
 
+int loopFilter = 150; // For numerical filtering of current sensing.  
+
 float zeroCurrent1 = 512; //outputCurrent1 is a float to display a more accurate output current on the lcd screen
 float zeroCurrent2 = 512;
 float zeroCurrent3 = 512;
 
-// var for pot
+float maxCurrent = 9.8; // cutoff for maximum Current allowed in each channel, CHANGE TO ~95% MOTOR DRIVER CAPACITY
 
+// For determining max pwm to reach maxCurrent on each channel. Reset Arduino to reset calibration 
+float maxPwmVal1 = 255;
+float maxPwmVal2 = 255;
+float maxPwmVal3 = 255;
+
+// For tracking if output will produce overCurrents
+boolean isOver1 = false; 
+boolean isOver2 = false;
+boolean isOver3 = false;
+
+// var for pot
 float potVal1;
 float potVal2;
 float potVal3;
-float scalePot = 3.6; // get output into pwm range
+float scalePot = 3.6; // get output into pwm range. CALIBRATE FOR YOUR POWER SUPPLY
 
 // safety feature, fourth pot cuts off power to all
 float potVal4;
@@ -74,7 +87,6 @@ float pwmVal2;
 float pwmVal3;
 
 //display vals
-
 int displayVal1;
 int displayVal2;
 int displayVal3;
@@ -132,19 +144,19 @@ void loop() {
   if (cutOff > 1){
     cutOff = 1;
   }
-  delay(20);
+  //delay(20);
 
   // current
   if (counter % 20 == 0)
   {
     lcd.clear();
   }
-  if (counter % 40 == 0)
+  if (counter % loopFilter == 0)
   {
     // update current
-    current1 = tempCurrent1/40/20;
-    current2 = tempCurrent2/40/20;
-    current3 = tempCurrent3/40/20;
+    current1 = tempCurrent1/loopFilter/20;
+    current2 = tempCurrent2/loopFilter/20;
+    current3 = tempCurrent3/loopFilter/20;
     
     tempCurrent1 = analogRead(am_pin1) - zeroCurrent1;
     tempCurrent2  = analogRead(am_pin2) - zeroCurrent2;
@@ -202,20 +214,70 @@ void loop() {
   digitalWrite(direction_pin1, motor_direction1);   // Set the motor in motion
   digitalWrite(direction_pin2, motor_direction2); 
   digitalWrite(direction_pin3, motor_direction3); 
-  
-  analogWrite(pwm_pin2, pwmVal2); //mid
-  analogWrite(pwm_pin1, pwmVal1); 
-  analogWrite(pwm_pin3, pwmVal3); //top
 
+// output to coils if measured current below threshold
+  if (current1 < maxCurrent && pwmVal1 <= maxPwmVal1) {
+      isOver1 = false;
+      analogWrite(pwm_pin1, pwmVal1); 
+  }
+  else {
+    if (!isOver1) {
+      maxPwmVal1 = pwmVal1;
+    }
+    isOver1 = true;
+    analogWrite(pwm_pin1, 0); 
+  }
+  
+  if (current2 < maxCurrent && pwmVal2 <= maxPwmVal2) {
+      isOver2 = false;
+      analogWrite(pwm_pin2, pwmVal2); 
+  }
+  else {
+    if (!isOver2) {
+      maxPwmVal2 = pwmVal2;
+    }
+    isOver2 = true;
+    analogWrite(pwm_pin2, 0); 
+  }
+  
+  if (current3 < maxCurrent && pwmVal3 <= maxPwmVal3) {
+      isOver3 = false;
+      analogWrite(pwm_pin3, pwmVal3); 
+  }
+  else {
+    if (!isOver3) {
+      maxPwmVal3 = pwmVal3;
+    }
+    isOver3 = true;
+    analogWrite(pwm_pin3, 0); 
+  }
+  
   lcd.setCursor(0, 0);
   lcd.print("1:");
-  lcd.print(current1);
+  
+  if (isOver1){
+    lcd.print("maxd"); 
+  }
+  else {
+    lcd.print(current1);    
+  }
   lcd.print(",2:");
-  lcd.print(current2);
+    if (isOver2){
+    lcd.print("maxd"); 
+  }
+  else {
+    lcd.print(current2);    
+  }
   //lcd.print(" Amps");
   lcd.setCursor(0, 1);
   lcd.print("3:");
-  lcd.print(current3);
+  
+  if (isOver3){
+    lcd.print("maxd"); 
+  }
+  else {
+    lcd.print(current3);    
+  }
   lcd.print(",P:");
   lcd.print((int)(cutOff*100));
   lcd.print("%");
@@ -226,8 +288,8 @@ void loop() {
 //   Serial.print(tempCurrent2);
 //   Serial.print(' ');
     
-  Serial.println(pwmVal3);
-
+  //Serial.println(maxPwmVal1);
+  Serial.println(maxPwmVal3);
   counter ++;
 
 }
