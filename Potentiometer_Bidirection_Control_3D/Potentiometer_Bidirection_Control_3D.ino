@@ -2,8 +2,7 @@
  *  and a Cytron 10A motor driver shield. This code will be used to vary current provided to Helmholtz Coils 
  *  for a 3D Magnetic Control System.
  *  
- *  Version 1 written by Tanner Hanson, January 2021
- *  Version 2 written By Joseph Martin, February 2021
+ *  Written By Joseph Martin, February 2021
  *  Last Edited by: Joseph Martin, March 8, 2021
  */
 #include <LiquidCrystal.h>
